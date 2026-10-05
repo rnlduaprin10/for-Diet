@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>다이어터 맞춤 식단 & 대체식품 추천 챗봇</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts Inter & Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans KR"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            emerald: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            },
+            amber: {
+              50: '#fffbeb',
+              100: '#fef3c7',
+              500: '#f59e0b',
+              600: '#d97706',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .fade-in {
+      animation: fadeIn 0.3s ease-in-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.run/@google/genai"
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex flex-col antialiased">
+
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Logo & Title -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-200">
+          <i data-lucide="utensils" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-slate-800 text-lg sm:text-xl leading-tight">다이어터 식단 챗봇</h1>
+          <p class="text-xs text-slate-500">맞춤 대체식품 & 외식 메뉴 가이드</p>
+        </div>
+      </div>
+
+      <!-- Diet Goal Selector -->
+      <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl text-xs sm:text-sm">
+        <span class="text-slate-500 pl-2 font-medium hidden sm:inline">목표:</span>
+        <select id="dietGoal" class="bg-white text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg border-0 shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer">
+          <option value="체지방 감량" selected>🔥 체지방 감량</option>
+          <option value="근손실 방지">💪 근손실 방지 (고단백)</option>
+          <option value="저탄고지">🥑 저탄고지 (키토)</option>
+          <option value="유지어터">⚖️ 유지어터</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-6 flex flex-col gap-4">
+    
+    <!-- Quick Presets Carousel/Grid -->
+    <section>
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-500"></i> 자주 묻는 인기 추천 질문
+      </p>
+      <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none text-xs sm:text-sm">
+        <button onclick="sendPreset('떡볶이가 너무 먹고 싶은데 다이어트용 대체제나 레시피 있어?')" 
+          class="flex items-center gap-1.5 whitespace-nowrap bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 px-3 py-2 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 transition-all">
+          <span>🍢</span> 떡볶이 대체제
+        </button>
+        <button onclick="sendPreset('CU/GS25 편의점에서 간단하게 살 수 있는 고단백 다이어트 조합 추천해줘')" 
+          class="flex items-center gap-1.5 whitespace-nowrap bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 px-3 py-2 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 transition-all">
+          <span>🏪</span> 편의점 꿀조합
+        </button>
+        <button onclick="sendPreset('오늘 친구들이랑 마라탕 먹으러 가는데 다이어트할 때 재료 뭐 골라야 해?')" 
+          class="flex items-center gap-1.5 whitespace-nowrap bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 px-3 py-2 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 transition-all">
+          <span>🥘</span> 마라탕 다이어트 조합
+        </button>
+        <button onclick="sendPreset('서가앤쿡/아웃백 같은 양식 레스토랑 외식할 때 살 안찌는 최선의 메뉴는?')" 
+          class="flex items-center gap-1.5 whitespace-nowrap bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 px-3 py-2 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 transition-all">
+          <span>🍽️️</span> 외식 프랜차이즈 가이드
+        </button>
+      </div>
+    </section>
+
+    <!-- Chat Messages Area -->
+    <section id="chatContainer" class="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm p-4 sm:p-6 min-h-[420px] max-h-[600px] overflow-y-auto flex flex-col gap-4">
+      
+      <!-- Bot Welcome Message -->
+      <div class="flex items-start gap-3 fade-in">
+        <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow">
+          🥗
+        </div>
+        <div class="bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none p-4 max-w-[85%] text-sm leading-relaxed shadow-sm">
+          <p class="font-semibold text-emerald-800 mb-1">안녕하세요! 당신의 전담 다이어트 영양사입니다.</p>
+          <p>먹고 싶은 자극적인 음식의 대체제(키토/곤약/고단백 제품)나 외식·편의점 상황에서의 메뉴 가이드가 필요하면 무엇이든 물어보세요! 😊</p>
+        </div>
+      </div>
+
+    </section>
+
+    <form id="chatForm" onsubmit="handleFormSubmit(event)" class="relative flex items-center gap-2">
+      <input type="text" id="userInput" placeholder="예: '치킨 너무 당기는데 다이어트 치킨 추천해줘'..." 
+        class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-3.5 pr-12 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm transition-all"
+        required autocomplete="off">
+      <button type="submit" id="sendBtn" 
+        class="absolute right-2 p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        <i data-lucide="send" class="w-4 h-4"></i>
+      </button>
+    </form>
+
+  </main>
+
+  <script type="module">
+    import { GoogleGenAI, Type } from "@google/genai";
+
+    // Initialize API Client
+    // apiKey is intentionally left as an empty string to use Canvas environment variable seamlessly
+    const apiKey = "";
+    const ai = new GoogleGenAI({ apiKey: apiKey });
+
+    // Global UI Elements
+    const chatContainer = document.getElementById('chatContainer');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const dietGoal = document.getElementById('dietGoal');
+
+    // Make functions accessible from HTML buttons
+    window.sendPreset = function(text) {
+      userInput.value = text;
+      handleFormSubmit(new Event('submit'));
+    };
+
+    window.handleFormSubmit = async function(e) {
+      e.preventDefault();
+      const query = userInput.value.trim();
+      if (!query) return;
+
+      const currentGoal = dietGoal.value;
+
+      // Append User Message to UI
+      appendUserMessage(query);
+      userInput.value = '';
+      sendBtn.disabled = true;
+
+      // Show Bot Loading State
+      const loadingId = appendLoadingIndicator();
+
+      try {
+        // Call Gemini API with structured schema
+        const responseData = await fetchDietRecommendation(query, currentGoal);
+        
+        // Remove loading and render response card
+        removeLoadingIndicator(loadingId);
+        appendBotResponseCard(responseData);
+
+      } catch (error) {
+        console.error("Gemini API Error:", error);
+        removeLoadingIndicator(loadingId);
+        appendErrorMessage("죄송합니다. 추천을 생성하는 중 오류가 발생했습니다. 다시 시도해 주세요.");
+      } finally {
+        sendBtn.disabled = false;
+        scrollToBottom();
+      }
+    };
+
+    async function fetchDietRecommendation(query, goal) {
+      const systemInstruction = `
+        당신은 대한민국 대표 다이어트 & 식단 관리 전문 영양사 챗봇입니다.
+        사용자가 먹고 싶은 음식(대체식품 요구)이나 외식/편의점 상황을 말하면, 
+        다이어트 목표(${goal})를 달성할 수 있는 최선의 실질적 대안을 제시해야 합니다.
+
+        응답 구조 규칙:
+        - category: '대체식품' 또는 '외식/편의점 가이드' 중 하나
+        - summary: 다이어터에게 동기부여가 되는 따뜻하고 명확한 한 줄 요약
+        - recommendations: 구체적 추천 선택지 2~3개 (실제 판매 제품 브랜드명, 키토/곤약 레시피, 또는 외식 브랜드 메뉴명)
+        - tip: 드레싱 조절, 국물 섭취 제한, 같이 먹기 좋은 음료/사이드 등 팁
+      `;
+
+      // Call Gemini 3 Flash Preview with Structured JSON Schema
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: [
+          { role: 'user', parts: [{ text: `[사용자 목표: ${goal}]\n[질문]: ${query}` }] }
+        ],
+        config: {
+          systemInstruction: systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              category: { type: Type.STRING, description: "대체식품 또는 외식/편의점 가이드" },
+              summary: { type: Type.STRING, description: "핵심 요약 메시지" },
+              recommendations: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "추천 항목 리스트 2~3개"
+              },
+              tip: { type: Type.STRING, description: "섭취 시 주의사항 및 다이어트 팁" }
+            },
+            required: ["category", "summary", "recommendations", "tip"]
+          },
+          temperature: 0.3,
+        }
+      });
+
+      const jsonText = response.text;
+      return JSON.parse(jsonText);
+    }
+
+    function appendUserMessage(text) {
+      const userDiv = document.createElement('div');
+      userDiv.className = 'flex items-start justify-end gap-3 fade-in';
+      userDiv.innerHTML = `
+        <div class="bg-emerald-600 text-white rounded-2xl rounded-tr-none p-3.5 max-w-[85%] text-sm leading-relaxed shadow-sm">
+          ${escapeHtml(text)}
+        </div>
+      `;
+      chatContainer.appendChild(userDiv);
+      scrollToBottom();
+    }
+
+    function appendLoadingIndicator() {
+      const loadingId = 'loading-' + Date.now();
+      const loadingDiv = document.createElement('div');
+      loadingDiv.id = loadingId;
+      loadingDiv.className = 'flex items-start gap-3 fade-in';
+      loadingDiv.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow">
+          🥗
+        </div>
+        <div class="bg-slate-100 text-slate-600 rounded-2xl rounded-tl-none p-4 text-sm flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-emerald-500 animate-bounce"></div>
+          <div class="w-2 h-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:0.2s]"></div>
+          <div class="w-2 h-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:0.4s]"></div>
+          <span class="text-xs text-slate-500 ml-1">영양 분석 및 추천 가이드 작성 중...</span>
+        </div>
+      `;
+      chatContainer.appendChild(loadingDiv);
+      scrollToBottom();
+      return loadingId;
+    }
+
+    function removeLoadingIndicator(id) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    }
+
+    function appendBotResponseCard(data) {
+      const isAlt = data.category.includes('대체');
+      const badgeColor = isAlt ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      const badgeIcon = isAlt ? 'package-check' : 'store';
+
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'flex items-start gap-3 fade-in';
+
+      const recsHtml = data.recommendations.map((item, index) => `
+        <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex items-start gap-2.5">
+          <span class="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center justify-center shrink-0 border border-emerald-200 mt-0.5">
+            ${index + 1}
+          </span>
+          <p class="text-xs sm:text-sm text-slate-700 font-medium leading-snug">${escapeHtml(item)}</p>
+        </div>
+      `).join('');
+
+      cardDiv.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow">
+          🥗
+        </div>
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl rounded-tl-none p-4 max-w-[90%] sm:max-w-[85%] flex flex-col gap-3 shadow-sm">
+          
+          <!-- Category Badge & Summary -->
+          <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+            <span class="text-[11px] font-bold px-2.5 py-1 rounded-full border ${badgeColor} flex items-center gap-1">
+              <i data-lucide="${badgeIcon}" class="w-3 h-3"></i>
+              ${escapeHtml(data.category)}
+            </span>
+            <span class="text-[11px] text-slate-400">Gemini AI 추천</span>
+          </div>
+
+          <p class="text-sm font-bold text-slate-800 leading-relaxed">
+            "${escapeHtml(data.summary)}"
+          </p>
+
+          <!-- Recommendation Cards List -->
+          <div class="flex flex-col gap-2 my-1">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">추천 선택지</p>
+            ${recsHtml}
+          </div>
+
+          <!-- Diet Tip Box -->
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-900">
+            <i data-lucide="lightbulb" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+            <div>
+              <span class="font-bold text-amber-950">영양 팁: </span>
+              ${escapeHtml(data.tip)}
+            </div>
+          </div>
+
+        </div>
+      `;
+
+      chatContainer.appendChild(cardDiv);
+      lucide.createIcons();
+      scrollToBottom();
+    }
+
+    function appendErrorMessage(msg) {
+      const errDiv = document.createElement('div');
+      errDiv.className = 'flex items-start gap-3 fade-in';
+      errDiv.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow">
+          ⚠️
+        </div>
+        <div class="bg-red-50 border border-red-200 text-red-700 rounded-2xl rounded-tl-none p-3.5 max-w-[85%] text-xs leading-relaxed">
+          ${escapeHtml(msg)}
+        </div>
+      `;
+      chatContainer.appendChild(errDiv);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, function(m) {
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[m];
+      });
+    }
+
+    // Initialize Lucide icons on page load
+    lucide.createIcons();
+  </script>
+</body>
+</html>
